@@ -2,51 +2,38 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 
-st.set_page_config(
-    page_title="YOLO Object Detection",
-    page_icon="🔍"
-)
+st.set_page_config(page_title="YOLO Object Detection")
 
-st.title("🔍 YOLO Object Detection")
-st.write("Upload an image and YOLO will detect objects in it.")
+@st.cache_resource
+def load_model():
+    return YOLO("yolov8n.pt")
 
-model = YOLO("yolov8n.pt")
+st.title("YOLO Object Detection")
 
 uploaded_file = st.file_uploader(
     "Upload an image",
     type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file is not None:
-
-    image = Image.open(uploaded_file)
-
-    st.subheader("Original Image")
-    st.image(image, use_container_width=True)
+if uploaded_file:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Original Image", use_container_width=True)
 
     if st.button("Detect Objects"):
+        model = load_model()
 
-        results = model(image)
+        with st.spinner("Detecting objects..."):
+            results = model.predict(
+                image,
+                imgsz=320,
+                device="cpu",
+                verbose=False
+            )
 
         result_image = results[0].plot()
+        st.image(result_image, caption="Detection Result", use_container_width=True)
 
-        st.subheader("Detection Result")
-        st.image(result_image, use_container_width=True)
-
-        st.subheader("Detected Objects")
-
-        boxes = results[0].boxes
-
-        if len(boxes) == 0:
-            st.write("No objects detected.")
-        else:
-            for box in boxes:
-                class_id = int(box.cls[0])
-                confidence = float(box.conf[0])
-
-                object_name = model.names[class_id]
-
-                st.write(
-                    f"**{object_name}** - "
-                    f"Confidence: {confidence:.2f}"
-                )
+        for box in results[0].boxes:
+            name = model.names[int(box.cls[0])]
+            confidence = float(box.conf[0])
+            st.write(f"{name} — {confidence:.2f}")
